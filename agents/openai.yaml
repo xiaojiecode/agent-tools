@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows Safe Tools"
+  short_description: "PowerShell 7-safe Windows repository helpers"
+  default_prompt: "Use $windows-safe-tools to run UTF-8 safe reads, searches, patches, Git checks, and profile-free PowerShell 7 commands on Windows."

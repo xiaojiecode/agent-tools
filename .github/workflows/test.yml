@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+      - run: go test ./scripts
+      - run: New-Item -ItemType Directory -Path dist -Force
+      - run: go build -trimpath -o dist/codex-tools.exe ./scripts/codex-tools.go
+      - shell: pwsh
+        run: |
+          $testHome = Join-Path $env:RUNNER_TEMP "windows-safe-tools-test"
+          ./scripts/install.ps1 -CodexHome $testHome -SkipUserEnvironment
+          & (Join-Path $testHome "bin/codex-tools.exe") gc SKILL.md --head 5
