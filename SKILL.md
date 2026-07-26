@@ -5,7 +5,15 @@ description: Use Windows-native helper commands for bounded UTF-8 reads, noise-e
 
 # Windows Safe Tools
 
-Use the executables in `%CODEX_TOOLS_HOME%` for routine Windows repository work. The eight executable names are ordinary copies of the same binary; dispatch depends on `argv[0]`, so do not replace them with `.cmd` forwarding wrappers.
+Call the short executable names directly for routine Windows repository work. The installer puts `%CODEX_TOOLS_HOME%` on `PATH`; do not construct an executable path with string concatenation before trying the short name. The eight executable names are ordinary copies of the same binary, and dispatch depends on `argv[0]`, so do not replace them with `.cmd` forwarding wrappers.
+
+If a short name is genuinely unavailable, verify that first with `Get-Command codex-ps -CommandType Application`. Only then use the call operator with the fallback path:
+
+```powershell
+& (Join-Path $env:CODEX_TOOLS_HOME 'codex-ps.exe') 'Get-Date'
+```
+
+`$env:CODEX_TOOLS_HOME + '\codex-ps.exe' --stdin` is not an invocation. `+` produces a string, and PowerShell cannot append command arguments to that expression without `&`.
 
 ## Commands
 
@@ -48,15 +56,28 @@ Use `codex-diff [repo] [paths...]`. With no paths it prints `git diff --stat`; w
 
 ### Profile-free PowerShell
 
-Use these forms:
+For agent-authored PowerShell, use a literal here-string and pipe the script to `codex-ps`. This keeps the script body out of the command-line argument parser, so write normal PowerShell without doubling quotes for an outer string:
 
 ```powershell
-codex-ps <script>
-codex-ps --stdin [-- args...]
-codex-ps --file <script.ps1> [-- args...]
+@'
+param([string]$Text)
+$payload = '{"enabled":true}'
+Write-Output "$Text $payload"
+'@ | codex-ps -- -Text 'a|b & 中文 "quote"'
 ```
 
-The helper requires PowerShell 7 through `pwsh.exe`; it never falls back to Windows PowerShell 5.1. It always supplies `-NoProfile -ExecutionPolicy Bypass`. `--stdin` validates UTF-8, creates a temporary `.ps1`, removes it afterward, and cleans matching temporary files older than one hour. A standalone `--` separates helper arguments from script arguments and is not passed through.
+The opening `@'` and closing `'@` markers must each be on their own line. Inside them, single quotes, double quotes, `$`, JSON, newlines, and shell metacharacters are literal script source. Piped stdin is the default mode; explicit `--stdin` remains available for non-PowerShell callers.
+
+Use file mode when the script already exists or contains a line that would collide with the chosen here-string terminator. Use direct mode only for a trivial one-line script that is already one caller argument:
+
+```powershell
+codex-ps --file <script.ps1> [-- args...]
+codex-ps 'Get-Date'
+```
+
+Do not escape inner single quotes as `''` inside a `codex-ps '<script>'` command once the script becomes non-trivial. That doubling is imposed by the caller's outer PowerShell single-quoted string, not by `codex-ps`, and is a signal to switch to `--stdin` or `--file`.
+
+The helper requires PowerShell 7 through `pwsh.exe`; it never falls back to Windows PowerShell 5.1. It always supplies `-NoProfile -ExecutionPolicy Bypass`. Direct mode rejects multiple script arguments instead of joining text whose quoting may already have been changed by the caller. Piped stdin and explicit `--stdin` validate UTF-8, create a temporary `.ps1`, remove it afterward, and clean matching temporary files older than one hour. A standalone `--` separates helper arguments from script arguments and is not passed through.
 
 ## Safety properties
 

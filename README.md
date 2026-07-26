@@ -74,16 +74,24 @@ codex-rg 'foo|bar' src
 codex-go-outline .\internal\service.go --exported
 codex-status C:\code\project
 codex-diff C:\code\project AGENTS.md
-codex-ps 'Get-ChildItem Env:'
+codex-ps 'Get-Date'
 ```
 
-复杂脚本使用标准输入，参数放在独立的 `--` 之后：
+Agent 编写的脚本默认使用字面 here-string 通过标准输入传递，参数放在独立的 `--` 之后：
 
 ```powershell
 @'
 param([string]$Text)
 Write-Output "Text=$Text"
-'@ | codex-ps --stdin -- -Text 'a|b & 中文 "quote"'
+'@ | codex-ps -- -Text 'a|b & 中文 "quote"'
+```
+
+here-string 的起止标记必须各自独占一行，正文可以自然书写单引号、双引号、变量、JSON、换行和 shell 元字符。外层 PowerShell 单引号字符串中的 `''` 是调用方的转义语法，不是 `codex-ps` 的要求；不要用这种形式承载 Agent 编写的复杂脚本。显式 `--stdin` 仍可供非 PowerShell 调用方使用。
+
+安装后优先直接调用 `codex-ps`。只有 `Get-Command codex-ps -CommandType Application` 确认短命令不可用时，才回退到：
+
+```powershell
+& (Join-Path $env:CODEX_TOOLS_HOME 'codex-ps.exe') 'Get-Date'
 ```
 
 完整参数和安全属性见 [SKILL.md](SKILL.md)。

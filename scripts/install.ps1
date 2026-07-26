@@ -81,9 +81,10 @@ function Update-GlobalAgents {
 ## Windows Safe Tools
 
 - For routine Windows repository work, prefer the executables in `%CODEX_TOOLS_HOME%` over raw PowerShell pipelines.
+- Invoke installed `codex-*` short names directly. Do not concatenate `$env:CODEX_TOOLS_HOME` with an executable name unless `Get-Command` first confirms the short name is unavailable; a computed path must be invoked with `&`.
 - `codex-ps` requires PowerShell 7 (`pwsh.exe`) and runs with `-NoProfile -ExecutionPolicy Bypass`; never use Windows PowerShell 5.1 as a fallback.
 - Use `codex-gc` for bounded UTF-8 reads, `codex-rg` for excluded searches, `codex-go-outline` for Go declarations, and `codex-ap` for UTF-8 patch files.
-- Use `codex-status` and `codex-diff` for Git checks, and `codex-ps --stdin` for scripts with nested quotes, JSON, here-strings, or shell metacharacters.
+- Use `codex-status` and `codex-diff` for Git checks. For Agent-authored PowerShell, pipe a literal here-string directly to `codex-ps`; keep direct `codex-ps '<script>'` only for trivial one-argument commands.
 - Keep reusable Windows/PowerShell workarounds in the global `AGENTS.md` or the `windows-safe-tools` skill instead of duplicating them in project-level instructions.
 <!-- windows-safe-tools:end -->
 '@

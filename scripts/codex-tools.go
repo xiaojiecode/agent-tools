@@ -813,8 +813,9 @@ func commandDiff(args []string) int {
 }
 
 func commandPS(args []string) int {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: codex-ps <script> | --stdin [-- args...] | --file <script.ps1> [-- args...]")
+	implicitStdin := len(args) == 0 || args[0] == "--"
+	if implicitStdin && !stdinIsRedirected() {
+		fmt.Fprintln(os.Stderr, "usage: <script> | codex-ps [-- args...] | codex-ps <single-script-argument> | --stdin [-- args...] | --file <script.ps1> [-- args...]")
 		return 2
 	}
 	powershell, err := findPowerShell()
@@ -823,36 +824,12 @@ func commandPS(args []string) int {
 		return 127
 	}
 	base := []string{"-NoProfile", "-ExecutionPolicy", "Bypass"}
+	if implicitStdin {
+		return runPSStdin(powershell, base, stripSeparator(args))
+	}
 	switch args[0] {
 	case "--stdin":
-		extra := stripSeparator(args[1:])
-		data, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
-			return 1
-		}
-		if !utf8.Valid(data) {
-			fmt.Fprintln(os.Stderr, "codex-ps: stdin is not valid UTF-8")
-			return 1
-		}
-		cleanupOldPSTempFiles()
-		f, err := os.CreateTemp("", "codex-ps-*.ps1")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
-			return 1
-		}
-		path := f.Name()
-		defer os.Remove(path)
-		if _, err = f.Write(data); err == nil {
-			err = f.Close()
-		} else {
-			_ = f.Close()
-		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
-			return 1
-		}
-		return runExternal(powershell, append(append(base, "-File", path), extra...), nil)
+		return runPSStdin(powershell, base, stripSeparator(args[1:]))
 	case "--file":
 		if len(args) < 2 || args[1] == "--" {
 			fmt.Fprintln(os.Stderr, "codex-ps: --file requires a script path")
@@ -861,13 +838,65 @@ func commandPS(args []string) int {
 		extra := stripSeparator(args[2:])
 		return runExternal(powershell, append(append(base, "-File", args[1]), extra...), nil)
 	default:
-		script := strings.Join(stripSeparator(args), " ")
-		if script == "" {
-			fmt.Fprintln(os.Stderr, "codex-ps: a script is required")
+		script, err := parsePSDirectScript(args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "codex-ps:", err)
 			return 2
 		}
 		return runExternal(powershell, append(base, "-Command", script), nil)
 	}
+}
+
+func stdinIsRedirected() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice == 0
+}
+
+func runPSStdin(powershell string, base, extra []string) int {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
+		return 1
+	}
+	if !utf8.Valid(data) {
+		fmt.Fprintln(os.Stderr, "codex-ps: stdin is not valid UTF-8")
+		return 1
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		fmt.Fprintln(os.Stderr, "codex-ps: stdin script is empty")
+		return 2
+	}
+	cleanupOldPSTempFiles()
+	f, err := os.CreateTemp("", "codex-ps-*.ps1")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
+		return 1
+	}
+	path := f.Name()
+	defer os.Remove(path)
+	if _, err = f.Write(data); err == nil {
+		err = f.Close()
+	} else {
+		_ = f.Close()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "codex-ps: %v\n", err)
+		return 1
+	}
+	return runExternal(powershell, append(append(base, "-File", path), extra...), nil)
+}
+
+func parsePSDirectScript(args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errors.New("direct mode accepts exactly one script argument; pipe the script to codex-ps or use --file when caller quoting may split it")
+	}
+	if strings.HasPrefix(args[0], "--") {
+		return "", fmt.Errorf("unknown option %q", args[0])
+	}
+	if strings.TrimSpace(args[0]) == "" {
+		return "", errors.New("a script is required")
+	}
+	return args[0], nil
 }
 
 func stripSeparator(args []string) []string {

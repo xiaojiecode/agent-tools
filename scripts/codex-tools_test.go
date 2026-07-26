@@ -97,3 +97,28 @@ func TestFindPowerShellDoesNotFallbackToWindowsPowerShell(t *testing.T) {
 		t.Fatalf("unexpected fallback path: %s", path)
 	}
 }
+
+func TestParsePSDirectScriptPreservesOneArgument(t *testing.T) {
+	script := `Write-Output 'a|b & "quote"'`
+	got, err := parsePSDirectScript([]string{script})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != script {
+		t.Fatalf("got %q, want %q", got, script)
+	}
+}
+
+func TestParsePSDirectScriptRejectsSplitArguments(t *testing.T) {
+	_, err := parsePSDirectScript([]string{"Write-Output", "value"})
+	if err == nil || !strings.Contains(err.Error(), "pipe the script to codex-ps") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestParsePSDirectScriptRejectsUnknownOption(t *testing.T) {
+	_, err := parsePSDirectScript([]string{"--unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown option") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
