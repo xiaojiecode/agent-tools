@@ -108,7 +108,7 @@ function Update-GlobalAgents {
     Set-Content -LiteralPath $Path -Value $updated -Encoding utf8 -NoNewline
 }
 
-$goCommand = Get-Command go -CommandType Application -ErrorAction Stop
+$goCommand = Get-Command go -CommandType Application -ErrorAction Stop | Select-Object -First 1
 $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("windows-safe-tools-" + [Guid]::NewGuid().ToString("N"))
 $temporaryBinary = Join-Path $temporaryDirectory "codex-tools.exe"
 
