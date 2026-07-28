@@ -14,9 +14,9 @@ jobs:
           go-version: "stable"
       - run: go test ./scripts
       - run: New-Item -ItemType Directory -Path dist -Force
-      - run: go build -trimpath -o dist/codex-tools.exe ./scripts/codex-tools.go
+      - run: go build -trimpath -o dist/agent-tools.exe ./scripts/agent-tools.go
       - shell: pwsh
         run: |
-          $testHome = Join-Path $env:RUNNER_TEMP "windows-safe-tools-test"
+          $testHome = Join-Path $env:RUNNER_TEMP "agent-tools-test"
           ./scripts/install.ps1 -CodexHome $testHome -SkipUserEnvironment
-          & (Join-Path $testHome "bin/codex-tools.exe") gc SKILL.md --head 5
+          & (Join-Path $testHome "bin/agent-tools.exe") read SKILL.md --head 5

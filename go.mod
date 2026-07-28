@@ -1,3 +1,3 @@
-module github.com/xiaojiecode/windows-safe-tools
+module github.com/xiaojiecode/agent-tools
 
 go 1.22

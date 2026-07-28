@@ -1,121 +1,99 @@
 ---
-name: windows-safe-tools
-description: Use Windows-native helper commands for bounded UTF-8 reads, noise-excluded ripgrep searches, Go outlines, apply_patch, Git checks, kill-on-close child processes, and profile-free PowerShell 7 execution. Use for routine Codex repository work on Windows where quoting, encoding, profile noise, shell metacharacters, or orphaned child processes make raw PowerShell commands fragile.
+name: agent-tools
+description: Use Windows-native agent helper commands for bounded UTF-8 file reads with glob expansion and batch boundaries, noise-excluded ripgrep searches, direct apply_patch delivery, Git checks, kill-on-close child processes, and profile-free PowerShell 7 execution. Use for routine repository work on Windows when quoting, encoding, oversized files or lines, profile noise, shell metacharacters, or orphaned child processes make raw PowerShell commands fragile.
 ---
 
-# Windows Safe Tools
+# Agent Tools
 
-Call the short executable names directly for routine Windows repository work. The installer puts `%CODEX_TOOLS_HOME%` on `PATH`; do not construct an executable path with string concatenation before trying the short name. The eight executable names are ordinary copies of the same binary, and dispatch depends on `argv[0]`, so do not replace them with `.cmd` forwarding wrappers.
+Invoke the installed `agent-*` executable names directly. The installer places `%AGENT_TOOLS_HOME%` on `PATH`; use a computed path only with PowerShell's `&` call operator.
 
-If a short name is genuinely unavailable, verify that first with `Get-Command codex-ps -CommandType Application`. Only then use the call operator with the fallback path:
+## Read Files
 
-```powershell
-& (Join-Path $env:CODEX_TOOLS_HOME 'codex-ps.exe') 'Get-Date'
-```
-
-`$env:CODEX_TOOLS_HOME + '\codex-ps.exe' --stdin` is not an invocation. `+` produces a string, and PowerShell cannot append command arguments to that expression without `&`.
-
-## Commands
-
-### Bounded UTF-8 reads
-
-Use `codex-gc` instead of unbounded reads for large text files:
+Use `agent-read` for bounded UTF-8 reads:
 
 ```powershell
-codex-gc <path>
-codex-gc <path> --lines START:END
-codex-gc <path> --from N --count N
-codex-gc <path> --head N
-codex-gc <path> --tail N
-codex-gc <path> --number
-codex-gc <path> --all
-codex-gc <path> --max-lines N
+agent-read <path-or-pattern>...
+agent-read <paths...> --lines START:END
+agent-read <paths...> --from N --count N
+agent-read <paths...> --head N
+agent-read <paths...> --tail N
+agent-read <paths...> --number
+agent-read <paths...> --all
+agent-read <paths...> --max-lines N
 ```
 
-The default output is the first 2,000 lines. Explicit ranges and `--tail` are complete unless `--max-lines` is also supplied. Invalid UTF-8 is an error. `~`, `~/...`, and `~\...` expand to the current user profile.
+Pass multiple concrete paths or patterns using `*`, `?`, `[]`, or recursive `**`. Results are sorted and deduplicated. Prefix a path beginning with `-` by `--`.
 
-### Repository search
+The default output is the first 2,000 lines. Follow the stderr continuation hint when more content exists. Explicit ranges and `--tail` are complete unless `--max-lines` is supplied.
 
-Use `codex-rg <pattern> [roots...]`. It invokes Windows `rg.exe` with line numbers, smart case, safe `--` pattern separation, and exclusions for `node_modules`, `dist`, `logs`, `.git`, `.idea`, `tmp`, `.cache`, and `coverage`. An omitted root means the current directory.
+For multiple files, recognize these boundaries and use the JSON metadata to associate content with its source:
 
-### Go declarations
+```text
+<<<AGENT_READ_FILE_START {"index":1,"total":2,"path":"C:\\code\\a.txt"}>>>
+...
+<<<AGENT_READ_FILE_END {"index":1,"total":2,"path":"C:\\code\\a.txt","status":"ok"}>>>
+```
 
-Use `codex-go-outline <file.go> [--exported] [--json]` to inspect imports, types, structs, interfaces, constants, variables, functions, methods, member signatures, documentation summaries, and source lines without printing function bodies.
+Treat invalid UTF-8 and safety-limit errors as failed reads. Limits are 1,000 matched files, 512 MiB per file, 8 MiB per line, 128 MiB retained tail content, and 1,000,000 tail lines. `~`, `~/...`, and `~\...` expand to the current user profile.
 
-### Apply a patch
+## Search Repositories
 
-Use `codex-ap <patch-file>`. The patch must be valid UTF-8 and begin with `*** Begin Patch` at byte zero. The helper passes the text directly to `codex.exe --codex-run-as-apply-patch`; it does not parse it or invoke an intermediate shell. Never put credentials or unrelated private data in patch files.
+Use `agent-rg <pattern> [roots...]`. It invokes Windows `rg.exe` with line numbers, smart case, safe pattern separation, and exclusions for `node_modules`, `dist`, `logs`, `.git`, `.idea`, `tmp`, `.cache`, and `coverage`.
+
+## Apply Patches
+
+Use `agent-ap <patch-file>`. Supply a valid UTF-8 patch beginning with `*** Begin Patch` at byte zero. The helper passes it directly to `codex.exe --codex-run-as-apply-patch` without an intermediate shell.
 
 Codex CLI discovery order is `CODEX_EXE`, `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`, then `codex.exe` in `PATH`.
 
-### Git checks
+## Check Git State
 
-Use `codex-status [repo]` for `git -C <repo> status --short`.
+Use `agent-status [repo]` for `git -C <repo> status --short`.
 
-Use `codex-diff [repo] [paths...]`. With no paths it prints `git diff --stat`; with paths it uses an argument-array `--` separator. The first argument is a repository only when it exists and is a directory.
+Use `agent-diff [repo] [paths...]`. With no paths it prints `git diff --stat`; with paths it adds an argument-array `--` separator.
 
-### Profile-free PowerShell
+## Run PowerShell
 
-For agent-authored PowerShell, use a literal here-string and pipe the script to `codex-ps`. This keeps the script body out of the command-line argument parser, so write normal PowerShell without doubling quotes for an outer string:
+Pipe Agent-authored scripts as literal here-strings to keep source out of command-line parsing:
 
 ```powershell
 @'
 param([string]$Text)
 $payload = '{"enabled":true}'
 Write-Output "$Text $payload"
-'@ | codex-ps -- -Text 'a|b & 中文 "quote"'
+'@ | agent-ps -- -Text 'a|b & 中文 "quote"'
 ```
 
-The opening `@'` and closing `'@` markers must each be on their own line. Inside them, single quotes, double quotes, `$`, JSON, newlines, and shell metacharacters are literal script source. Piped stdin is the default mode; explicit `--stdin` remains available for non-PowerShell callers.
+Use `agent-ps --file <script.ps1> [-- args...]` for existing files. Use direct `agent-ps '<script>'` only for trivial one-line scripts already represented by one caller argument.
 
-Use file mode when the script already exists or contains a line that would collide with the chosen here-string terminator. Use direct mode only for a trivial one-line script that is already one caller argument:
+`agent-ps` requires `pwsh.exe` and always supplies `-NoProfile -ExecutionPolicy Bypass`. It validates piped UTF-8, uses a temporary `.ps1`, and removes matching temporary files older than one hour. It does not fall back to Windows PowerShell 5.1.
 
-```powershell
-codex-ps --file <script.ps1> [-- args...]
-codex-ps 'Get-Date'
-```
+## Safety And Dependencies
 
-Do not escape inner single quotes as `''` inside a `codex-ps '<script>'` command once the script becomes non-trivial. That doubling is imposed by the caller's outer PowerShell single-quoted string, not by `codex-ps`, and is a signal to switch to `--stdin` or `--file`.
+- External processes receive argument arrays rather than `.cmd` forwarding.
+- External processes join a `KILL_ON_JOB_CLOSE` Windows Job Object when available.
+- Missing dependencies return 127; usage errors return 2; file and parse failures normally return 1.
+- `agent-read` is self-contained. `agent-rg` requires `rg.exe`; Git commands require Git; `agent-ps` requires PowerShell 7; `agent-ap` requires Codex CLI.
 
-The helper requires PowerShell 7 through `pwsh.exe`; it never falls back to Windows PowerShell 5.1. It always supplies `-NoProfile -ExecutionPolicy Bypass`. Direct mode rejects multiple script arguments instead of joining text whose quoting may already have been changed by the caller. Piped stdin and explicit `--stdin` validate UTF-8, create a temporary `.ps1`, remove it afterward, and clean matching temporary files older than one hour. A standalone `--` separates helper arguments from script arguments and is not passed through.
+## Install
 
-## Safety properties
+Run `pwsh -NoProfile -File scripts/install.ps1` from the repository root. The installer builds seven executable names, sets `AGENT_TOOLS_HOME`, installs the Skill under `%CODEX_HOME%\skills\agent-tools`, and updates the global `AGENTS.md` marker block.
 
-- External processes receive argument arrays; shell metacharacters are not re-parsed by `.cmd` wrappers.
-- External processes are assigned to a Windows Job Object with `KILL_ON_JOB_CLOSE` when Windows permits it.
-- Missing external dependencies return exit code 127.
-- Usage and unknown-option errors return exit code 2.
-- File and parse failures normally return exit code 1.
-- The helper set does not include Codex authentication, state, logs, memories, plugin caches, project secrets, or the Codex CLI binary.
-
-## Dependencies
-
-`codex-gc` and `codex-go-outline` are self-contained. `codex-rg` requires Windows `rg.exe`; `codex-status` and `codex-diff` require Git; `codex-ps` requires PowerShell 7 (`pwsh.exe`); `codex-ap` requires a native `codex.exe` discoverable by its documented lookup order.
-
-## Installation
-
-Run `pwsh -NoProfile -File scripts/install.ps1` from the repository root. The installer builds the Go binary, creates all eight executable names, sets the current user's `CODEX_TOOLS_HOME` and `PATH`, installs the skill, and inserts an idempotent marked description block into the user's global `%CODEX_HOME%\AGENTS.md` (or `%USERPROFILE%\.codex\AGENTS.md`).
-
-## Installation layout
-
-The standard layout is:
+Standard layout:
 
 ```text
 %USERPROFILE%\.codex\bin\
-  codex-tools.exe
-  codex-rg.exe
-  codex-gc.exe
-  codex-go-outline.exe
-  codex-ap.exe
-  codex-status.exe
-  codex-diff.exe
-  codex-ps.exe
+  agent-tools.exe
+  agent-read.exe
+  agent-rg.exe
+  agent-ap.exe
+  agent-status.exe
+  agent-diff.exe
+  agent-ps.exe
 
-%USERPROFILE%\.codex\skills\windows-safe-tools\
+%USERPROFILE%\.codex\skills\agent-tools\
   SKILL.md
   agents\openai.yaml
-  scripts\codex-tools.go
-  scripts\codex-tools_test.go
+  scripts\agent-tools.go
+  scripts\agent-tools_test.go
 ```
-
-`CODEX_TOOLS_HOME` points to the bin directory, which must also occur exactly once in the current user's `PATH`. New environment-variable values are visible to newly opened processes; already-running terminals may require a manual process-level refresh.

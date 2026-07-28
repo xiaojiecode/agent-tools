@@ -1,4 +1,4 @@
 interface:
-  display_name: "Windows Safe Tools"
-  short_description: "PowerShell 7-safe Windows repository helpers"
-  default_prompt: "Use $windows-safe-tools to run UTF-8 safe reads, searches, patches, Git checks, and profile-free PowerShell 7 commands on Windows."
+  display_name: "Agent Tools"
+  short_description: "Safe Windows repository commands for agents"
+  default_prompt: "Use $agent-tools to read files safely, search repositories, apply patches, inspect Git state, and run profile-free PowerShell 7 commands on Windows."

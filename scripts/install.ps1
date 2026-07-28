@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ($PSVersionTable.PSEdition -ne "Core" -or $PSVersionTable.PSVersion.Major -lt 7) {
-    throw "windows-safe-tools requires PowerShell 7 or newer (pwsh.exe)."
+    throw "agent-tools requires PowerShell 7 or newer (pwsh.exe)."
 }
 
 if ([string]::IsNullOrWhiteSpace($CodexHome)) {
@@ -30,18 +30,17 @@ if ([string]::IsNullOrWhiteSpace($GlobalAgentsPath)) {
 $GlobalAgentsPath = [IO.Path]::GetFullPath($GlobalAgentsPath)
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$goSource = Join-Path $PSScriptRoot "codex-tools.go"
+$goSource = Join-Path $PSScriptRoot "agent-tools.go"
 $binDirectory = Join-Path $CodexHome "bin"
-$skillDirectory = Join-Path $CodexHome "skills\windows-safe-tools"
+$skillDirectory = Join-Path $CodexHome "skills\agent-tools"
 $executableNames = @(
-    "codex-tools.exe",
-    "codex-rg.exe",
-    "codex-gc.exe",
-    "codex-go-outline.exe",
-    "codex-ap.exe",
-    "codex-status.exe",
-    "codex-diff.exe",
-    "codex-ps.exe"
+    "agent-tools.exe",
+    "agent-rg.exe",
+    "agent-read.exe",
+    "agent-ap.exe",
+    "agent-status.exe",
+    "agent-diff.exe",
+    "agent-ps.exe"
 )
 
 function Normalize-PathEntry {
@@ -74,19 +73,19 @@ function Add-PathEntryOnce {
 function Update-GlobalAgents {
     param([string]$Path)
 
-    $beginMarker = "<!-- windows-safe-tools:start -->"
-    $endMarker = "<!-- windows-safe-tools:end -->"
+    $beginMarker = "<!-- agent-tools:start -->"
+    $endMarker = "<!-- agent-tools:end -->"
     $block = @'
-<!-- windows-safe-tools:start -->
-## Windows Safe Tools
+<!-- agent-tools:start -->
+## Agent Tools
 
-- For routine Windows repository work, prefer the executables in `%CODEX_TOOLS_HOME%` over raw PowerShell pipelines.
-- Invoke installed `codex-*` short names directly. Do not concatenate `$env:CODEX_TOOLS_HOME` with an executable name unless `Get-Command` first confirms the short name is unavailable; a computed path must be invoked with `&`.
-- `codex-ps` requires PowerShell 7 (`pwsh.exe`) and runs with `-NoProfile -ExecutionPolicy Bypass`; never use Windows PowerShell 5.1 as a fallback.
-- Use `codex-gc` for bounded UTF-8 reads, `codex-rg` for excluded searches, `codex-go-outline` for Go declarations, and `codex-ap` for UTF-8 patch files.
-- Use `codex-status` and `codex-diff` for Git checks. For Agent-authored PowerShell, pipe a literal here-string directly to `codex-ps`; keep direct `codex-ps '<script>'` only for trivial one-argument commands.
-- Keep reusable Windows/PowerShell workarounds in the global `AGENTS.md` or the `windows-safe-tools` skill instead of duplicating them in project-level instructions.
-<!-- windows-safe-tools:end -->
+- For routine Windows repository work, prefer the executables in `%AGENT_TOOLS_HOME%` over raw PowerShell pipelines.
+- Invoke installed `agent-*` short names directly. A computed executable path must be invoked with PowerShell's `&` call operator.
+- `agent-ps` requires PowerShell 7 (`pwsh.exe`) and runs with `-NoProfile -ExecutionPolicy Bypass`; never use Windows PowerShell 5.1 as a fallback.
+- Use `agent-read` for bounded UTF-8 reads with glob support, `agent-rg` for excluded searches, and `agent-ap` for UTF-8 patch files.
+- Use `agent-status` and `agent-diff` for Git checks. For Agent-authored PowerShell, pipe a literal here-string directly to `agent-ps`; keep direct `agent-ps '<script>'` only for trivial one-argument commands.
+- Keep reusable Windows/PowerShell workarounds in the global `AGENTS.md` or the `agent-tools` skill instead of duplicating them in project-level instructions.
+<!-- agent-tools:end -->
 '@
 
     $parent = Split-Path -Parent $Path
@@ -110,8 +109,8 @@ function Update-GlobalAgents {
 }
 
 $goCommand = Get-Command go -CommandType Application -ErrorAction Stop | Select-Object -First 1
-$temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("windows-safe-tools-" + [Guid]::NewGuid().ToString("N"))
-$temporaryBinary = Join-Path $temporaryDirectory "codex-tools.exe"
+$temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("agent-tools-" + [Guid]::NewGuid().ToString("N"))
+$temporaryBinary = Join-Path $temporaryDirectory "agent-tools.exe"
 
 try {
     New-Item -ItemType Directory -Path $temporaryDirectory -Force | Out-Null
@@ -133,10 +132,10 @@ try {
     }
 
     if (-not $SkipUserEnvironment) {
-        [Environment]::SetEnvironmentVariable("CODEX_TOOLS_HOME", $binDirectory, "User")
+        [Environment]::SetEnvironmentVariable("AGENT_TOOLS_HOME", $binDirectory, "User")
         $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
         [Environment]::SetEnvironmentVariable("Path", (Add-PathEntryOnce $userPath $binDirectory), "User")
-        $env:CODEX_TOOLS_HOME = $binDirectory
+        $env:AGENT_TOOLS_HOME = $binDirectory
         $env:PATH = Add-PathEntryOnce $env:PATH $binDirectory
     }
 
