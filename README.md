@@ -53,7 +53,7 @@ Set-Location .\agent-tools
 pwsh -NoProfile -File .\scripts\install.ps1
 ```
 
-安装脚本会构建七个可执行文件，设置当前用户的 `AGENT_TOOLS_HOME` 和 `PATH`，将 Skill 安装到 `%CODEX_HOME%\skills\agent-tools`，并在全局 `AGENTS.md` 中写入 `agent-tools` 标记块。
+安装脚本会构建七个可执行文件，设置当前用户的 `AGENT_TOOLS_HOME` 和 `PATH`，将 Skill 安装到 `%CODEX_HOME%\skills\agent-tools`，并将 `assets/global-agents.md` 中完整、自包含的日常命令说明写入全局 `AGENTS.md`。普通仓库操作可直接依据全局说明执行，不需要先加载 Skill；Skill 仅用于显式调用、维护、重装和疑难排查。
 
 测试安装而不修改用户环境变量或真实全局 Agent 文件：
 
@@ -85,6 +85,7 @@ Write-Output "Text=$Text"
 
 ```powershell
 go test .\scripts
+pwsh -NoProfile -File .\scripts\install_test.ps1
 go build -o .\dist\agent-tools.exe .\scripts\agent-tools.go
 pwsh -NoProfile -File .\scripts\install.ps1 -CodexHome (Join-Path $env:TEMP "agent-tools-test") -SkipUserEnvironment
 ```

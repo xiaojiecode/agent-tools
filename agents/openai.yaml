@@ -1,4 +1,6 @@
 interface:
   display_name: "Agent Tools"
-  short_description: "Safe Windows repository commands for agents"
-  default_prompt: "Use $agent-tools to read files safely, search repositories, apply patches, inspect Git state, and run profile-free PowerShell 7 commands on Windows."
+  short_description: "Maintain Windows agent helper commands and setup"
+  default_prompt: "Use $agent-tools to maintain, install, or troubleshoot the Windows agent helper commands and their global AGENTS.md integration."
+policy:
+  allow_implicit_invocation: false

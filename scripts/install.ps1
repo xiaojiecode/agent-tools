@@ -31,6 +31,7 @@ $GlobalAgentsPath = [IO.Path]::GetFullPath($GlobalAgentsPath)
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $goSource = Join-Path $PSScriptRoot "agent-tools.go"
+$globalAgentsTemplate = Join-Path $repositoryRoot "assets\global-agents.md"
 $binDirectory = Join-Path $CodexHome "bin"
 $skillDirectory = Join-Path $CodexHome "skills\agent-tools"
 $executableNames = @(
@@ -71,22 +72,23 @@ function Add-PathEntryOnce {
 }
 
 function Update-GlobalAgents {
-    param([string]$Path)
+    param(
+        [string]$Path,
+        [string]$TemplatePath
+    )
 
     $beginMarker = "<!-- agent-tools:start -->"
     $endMarker = "<!-- agent-tools:end -->"
-    $block = @'
-<!-- agent-tools:start -->
-## Agent Tools
+    if (-not (Test-Path -LiteralPath $TemplatePath -PathType Leaf)) {
+        throw "Global AGENTS template not found: $TemplatePath"
+    }
 
-- For routine Windows repository work, prefer the executables in `%AGENT_TOOLS_HOME%` over raw PowerShell pipelines.
-- Invoke installed `agent-*` short names directly. A computed executable path must be invoked with PowerShell's `&` call operator.
-- `agent-ps` requires PowerShell 7 (`pwsh.exe`) and runs with `-NoProfile -ExecutionPolicy Bypass`; never use Windows PowerShell 5.1 as a fallback.
-- Use `agent-read` for bounded UTF-8 reads with glob support, `agent-rg` for excluded searches, and `agent-ap` for UTF-8 patch files.
-- Use `agent-status` and `agent-diff` for Git checks. For Agent-authored PowerShell, pipe a literal here-string directly to `agent-ps`; keep direct `agent-ps '<script>'` only for trivial one-argument commands.
-- Keep reusable Windows/PowerShell workarounds in the global `AGENTS.md` or the `agent-tools` skill instead of duplicating them in project-level instructions.
-<!-- agent-tools:end -->
-'@
+    $block = (Get-Content -LiteralPath $TemplatePath -Raw -Encoding utf8).Trim()
+    $beginCount = [Regex]::Matches($block, [Regex]::Escape($beginMarker)).Count
+    $endCount = [Regex]::Matches($block, [Regex]::Escape($endMarker)).Count
+    if ($beginCount -ne 1 -or $endCount -ne 1 -or -not $block.StartsWith($beginMarker) -or -not $block.EndsWith($endMarker)) {
+        throw "Global AGENTS template must contain exactly one complete agent-tools marker block."
+    }
 
     $parent = Split-Path -Parent $Path
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -126,7 +128,7 @@ try {
 
     if (-not [string]::Equals([IO.Path]::GetFullPath($repositoryRoot), [IO.Path]::GetFullPath($skillDirectory), [StringComparison]::OrdinalIgnoreCase)) {
         New-Item -ItemType Directory -Path $skillDirectory -Force | Out-Null
-        foreach ($item in @("SKILL.md", "agents", "scripts")) {
+        foreach ($item in @("SKILL.md", "agents", "assets", "scripts")) {
             Copy-Item -LiteralPath (Join-Path $repositoryRoot $item) -Destination $skillDirectory -Recurse -Force
         }
     }
@@ -140,7 +142,7 @@ try {
     }
 
     if (-not $SkipGlobalAgents) {
-        Update-GlobalAgents $GlobalAgentsPath
+        Update-GlobalAgents $GlobalAgentsPath $globalAgentsTemplate
     }
 } finally {
     if (Test-Path -LiteralPath $temporaryDirectory) {
